@@ -3,6 +3,9 @@ var router = express.Router();
 const bcrypt = require("bcryptjs");
 const { uuid } = require("uuidv4");
 const { blogsDB } = require("../mongo");
+const dotenv = require("dotenv");
+const jwt = require("jsonwebtoken");
+dotenv.config();
 
 const createUser = async (username, passwordHash) => {
   try {
@@ -46,10 +49,37 @@ router.post("/login-user", async function (req, res, next) {
 
     const match = await bcrypt.compare(req.body.password, user.password);
 
-    res.json({ success: match });
+    const jwtSecretKey = process.env.JWT_SECRET_KEY;
+    const data = {
+      time: new Date(),
+      userId: user.uid,
+    };
+    const token = jwt.sign(data, jwtSecretKey);
+
+    res.json({ success: match, token });
   } catch (e) {
     console.error(e);
     res.json({ success: false });
+  }
+});
+
+router.get("/validate-token", async function (req, res, next) {
+  const tokenHeaderKey = process.env.TOKEN_HEADER_KEY;
+  const jwtSecretKey = process.env.JWT_SECRET_KEY;
+
+  try {
+    const token = req.header(tokenHeaderKey);
+
+    const verified = jwt.verify(token, jwtSecretKey);
+    if (verified) {
+      return res.json({ success: true });
+    } else {
+      // Access Denied
+      throw Error("Access Denied");
+    }
+  } catch (error) {
+    // Access Denied
+    return res.status(401).json({ success: true, message: String(error) });
   }
 });
 
